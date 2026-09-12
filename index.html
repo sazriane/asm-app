@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASM App - Guru Sekolah Minggu</title>
+  <!-- Tailwind CSS untuk rekaan kemas -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Pustaka Rasmi Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-pink-50 text-slate-800 min-h-screen p-4 pb-12 font-sans">
+
+  <div class="max-w-md mx-auto">
+    <!-- Header -->
+    <header class="bg-white rounded-3xl p-5 shadow-sm border border-pink-100 text-center mb-6">
+      <div class="inline-block bg-pink-100 text-pink-600 p-3 rounded-2xl mb-2 text-2xl font-bold">✝️</div>
+      <h1 class="text-xl font-bold text-slate-800">ASM App</h1>
+      <p class="text-xs text-slate-500">Portal Guru Sekolah Minggu</p>
+    </header>
+
+    <!-- Papan Pengumuman Pusat / Ayat Hafalan -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-pink-100 mb-5">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="bg-pink-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Ayat Hafalan</span>
+      </div>
+      <p class="text-sm font-semibold text-slate-700 italic" id="memoryVerse">"Biarlah anak-anak itu datang kepada-Ku..."</p>
+      <p class="text-[11px] text-pink-500 font-bold mt-1">Matius 19:14</p>
+    </div>
+
+    <!-- Modul Kehadiran ASM -->
+    <div class="bg-white rounded-3xl p-5 shadow-sm border border-pink-100">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="font-bold text-base text-slate-800">Senarai Kehadiran</h2>
+          <p class="text-[11px] text-slate-400" id="currentDate">Memuatkan tarikh...</p>
+        </div>
+        <span class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">Ahad</span>
+      </div>
+
+      <!-- Borang Tambah Murid Cepat -->
+      <div class="flex gap-2 mb-4">
+        <input type="text" id="childName" placeholder="Nama anak ASM..." class="flex-1 text-sm bg-pink-50/50 border border-pink-200 rounded-xl px-3 py-2 outline-none focus:border-pink-400">
+        <button onclick="addChild()" class="bg-pink-500 hover:bg-pink-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm">+ Tambah</button>
+      </div>
+
+      <!-- Senarai Nama Anak -->
+      <div id="childrenList" class="space-y-2.5">
+        <p class="text-xs text-slate-400 text-center py-4">Memuatkan senarai anak...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Konfigurasi Supabase Anda
+    const SUPABASE_URL = "https://qyylvkvfaeebztjgncru.supabase.co";
+    const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5eWx2a3ZmYWVlYnp0amduY3J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNTgwODksImV4cCI6MjEwNDczNDA4OX0.Z3s3VmpNMCv4F35_m599-ZRIiz2fGzaCGpqpgvmuCHQ";
+    
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    // Papar Tarikh Ahad Semasa
+    const today = new Date();
+    document.getElementById('currentDate').innerText = today.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+
+    // Fungsi Ambil Senarai Anak
+    async function loadChildren() {
+      const listContainer = document.getElementById('childrenList');
+      const { data, error } = await client.from('children').select('*').order('created_at', { ascending: false });
+
+      if (error || !data || data.length === 0) {
+        listContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada rekod anak. Sila tambah di atas.</p>';
+        return;
+      }
+
+      listContainer.innerHTML = '';
+      data.forEach(child => {
+        const item = document.createElement('div');
+        item.className = "flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100";
+        item.innerHTML = `
+          <div>
+            <p class="text-sm font-semibold text-slate-800">${child.full_name}</p>
+            <span class="text-[10px] text-pink-500 font-medium">Aktif</span>
+          </div>
+          <div class="flex gap-1.5">
+            <button onclick="markAttendance('${child.id}', 'hadir')" class="text-xs bg-emerald-500 text-white font-medium px-3 py-1.5 rounded-xl hover:bg-emerald-600 transition">Hadir</button>
+            <button onclick="markAttendance('${child.id}', 'tidak')" class="text-xs bg-slate-200 text-slate-600 font-medium px-2.5 py-1.5 rounded-xl hover:bg-slate-300 transition">Tidak</button>
+          </div>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    // Fungsi Tambah Anak Baru
+    async function addChild() {
+      const nameInput = document.getElementById('childName');
+      const name = nameInput.value.trim();
+      if (!name) return alert('Sila masukkan nama anak.');
+
+      // Jana ID sementara untuk gereja dan kelas contoh
+      const { error } = await client.from('children').insert([
+        { full_name: name, church_id: '00000000-0000-0000-0000-000000000000', class_id: '00000000-0000-0000-0000-000000000000' }
+      ]);
+
+      if (error) {
+        alert('Ralat semasa menambah: ' + error.message);
+      } else {
+        nameInput.value = '';
+        loadChildren();
+      }
+    }
+
+    // Fungsi Tanda Kehadiran
+    async function markAttendance(childId, status) {
+      const todayDate = new Date().toISOString().split('T')[0];
+      const { error } = await client.from('attendance').upsert({
+        child_id: childId,
+        date: todayDate,
+        status: status
+      });
+
+      if (error) {
+        alert('Ralat tanda kehadiran: ' + error.message);
+      } else {
+        alert(`Kehadiran ditanda: ${status.toUpperCase()}!`);
+      }
+    }
+
+    loadChildren();
+  </script>
+</body>
+</html>
+a
